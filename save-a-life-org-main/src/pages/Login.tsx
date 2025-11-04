@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Navbar from "@/components/Navbar";
@@ -13,24 +19,25 @@ const Login = () => {
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState<string>("");
+  const [userType, setUserType] = useState<string>(""); 
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Get role from URL parameter and redirect if not present
+
   useEffect(() => {
     const roleParam = searchParams.get("role");
     if (roleParam) {
       setUserType(roleParam);
     } else {
-      // Redirect to role selection if no role specified
+
       navigate("/roles");
     }
   }, [searchParams, navigate]);
 
-  const handleLogin = (e: React.FormEvent) => {
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Error",
@@ -40,23 +47,59 @@ const Login = () => {
       return;
     }
 
-    // Mock authentication - navigate based on user type
-    toast({
-      title: "Login Successful",
-      description: `Welcome back!`,
-    });
+    try {
 
-    // Navigate to appropriate dashboard
-    if (userType === "admin") {
-      navigate("/admin/dashboard");
-    } else if (userType === "donor") {
-      navigate("/donor/dashboard");
-    } else if (userType === "patient") {
-      navigate("/patient/dashboard");
+      const response = await fetch("http://localhost:3000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+
+        throw new Error(data.message || "Something went wrong");
+      }
+
+
+      const userRole = data.user.role; 
+
+      if (userRole !== userType) {
+
+        throw new Error(
+          `Access denied. You are not a ${getRoleName()}. Please use the correct login page.`
+        );
+      }
+
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user)); 
+
+
+      toast({
+        title: "Login Successful",
+        description: `Welcome back, ${data.user.name}!`,
+      });
+
+
+      if (userRole === "admin") {
+        navigate("/admin/dashboard");
+      } else if (userRole === "donor") {
+        navigate("/donor/dashboard");
+      } else if (userRole === "patient") {
+        navigate("/patient/dashboard");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Login Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
-
-  // Get role display name
   const getRoleName = () => {
     if (userType === "admin") return "Admin";
     if (userType === "donor") return "Organ Donor";
@@ -67,7 +110,7 @@ const Login = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      
+
       <main className="flex-1 flex items-center justify-center px-4 py-12 bg-muted">
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="space-y-1 text-center">
@@ -111,8 +154,13 @@ const Login = () => {
             </form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Don't have an account? </span>
-              <Link to="/signup" className="text-primary hover:underline font-medium">
+              <span className="text-muted-foreground">
+                Don't have an account?{" "}
+              </span>
+              <Link
+                to="/signup"
+                className="text-primary hover:underline font-medium"
+              >
                 Sign up
               </Link>
             </div>

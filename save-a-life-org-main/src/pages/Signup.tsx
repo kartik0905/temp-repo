@@ -1,10 +1,22 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Heart } from "lucide-react";
@@ -25,10 +37,17 @@ const Signup = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.password || !formData.userType) {
+
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.password ||
+      !formData.userType
+    ) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -46,25 +65,56 @@ const Signup = () => {
       return;
     }
 
-    toast({
-      title: "Registration Successful",
-      description: "Your account has been created!",
-    });
+    // 2. API Call to the backend
+    try {
+      const response = await fetch("http://localhost:3000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          userType: formData.userType, 
+        }),
+      });
 
-    // Navigate to appropriate dashboard
-    if (formData.userType === "admin") {
-      navigate("/admin/dashboard");
-    } else if (formData.userType === "donor") {
-      navigate("/donor/dashboard");
-    } else if (formData.userType === "patient") {
-      navigate("/patient/dashboard");
+      const data = await response.json();
+
+      if (!response.ok) {
+
+        throw new Error(data.message || "Something went wrong");
+      }
+
+
+      toast({
+        title: "Registration Successful",
+        description: "Your account has been created!",
+      });
+
+
+      if (formData.userType === "admin") {
+        navigate("/admin/dashboard");
+      } else if (formData.userType === "donor") {
+        navigate("/donor/dashboard");
+      } else if (formData.userType === "patient") {
+        navigate("/patient/dashboard");
+      }
+    } catch (error: any) {
+
+      toast({
+        title: "Registration Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      
+
       <main className="flex-1 flex items-center justify-center px-4 py-12 bg-muted">
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="space-y-1 text-center">
@@ -80,7 +130,10 @@ const Signup = () => {
             <form onSubmit={handleSignup} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="userType">I am a</Label>
-                <Select value={formData.userType} onValueChange={(val) => handleChange("userType", val)}>
+                <Select
+                  value={formData.userType}
+                  onValueChange={(val) => handleChange("userType", val)}
+                >
                   <SelectTrigger id="userType">
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
@@ -135,7 +188,9 @@ const Signup = () => {
                   type="password"
                   placeholder="••••••••"
                   value={formData.confirmPassword}
-                  onChange={(e) => handleChange("confirmPassword", e.target.value)}
+                  onChange={(e) =>
+                    handleChange("confirmPassword", e.target.value)
+                  }
                   required
                 />
               </div>
@@ -146,8 +201,13 @@ const Signup = () => {
             </form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Already have an account? </span>
-              <Link to="/login" className="text-primary hover:underline font-medium">
+              <span className="text-muted-foreground">
+                Already have an account?{" "}
+              </span>
+              <Link
+                to="/login"
+                className="text-primary hover:underline font-medium"
+              >
                 Login
               </Link>
             </div>

@@ -2,10 +2,29 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
@@ -13,26 +32,42 @@ import Footer from "@/components/Footer";
 import { useState } from "react";
 
 const donorRegistrationSchema = z.object({
-  fullName: z.string().min(2, "Name must be at least 2 characters").max(100, "Name must be less than 100 characters"),
+  fullName: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(100, "Name must be less than 100 characters"),
   dateOfBirth: z.string().refine((val) => {
     const birthDate = new Date(val);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
       age--;
     }
     return age >= 18 && age <= 65;
   }, "You must be between 18 and 65 years old to register"),
   bloodGroup: z.string().min(1, "Please select your blood group"),
   organType: z.string().min(1, "Please select organ type"),
-  phone: z.string().regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format"),
+  phone: z
+    .string()
+    .regex(
+      /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/,
+      "Invalid phone number format"
+    ),
   address: z.string().min(10, "Address must be at least 10 characters"),
   city: z.string().min(2, "City is required"),
   state: z.string().min(2, "State is required"),
   zipCode: z.string().regex(/^[0-9]{5}(?:-[0-9]{4})?$/, "Invalid ZIP code"),
   emergencyContactName: z.string().min(2, "Emergency contact name is required"),
-  emergencyContactPhone: z.string().regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format"),
+  emergencyContactPhone: z
+    .string()
+    .regex(
+      /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/,
+      "Invalid phone number format"
+    ),
   medicalHistory: z.string().optional(),
 });
 
@@ -41,9 +76,8 @@ const DonorRegistration = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Get email from location state or use empty string if not available
-  const email = location.state?.email || '';
+
+  const email = location.state?.email || "";
 
   const form = useForm<z.infer<typeof donorRegistrationSchema>>({
     resolver: zodResolver(donorRegistrationSchema),
@@ -64,29 +98,55 @@ const DonorRegistration = () => {
   });
 
   const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-  const organTypes = ["Kidney", "Liver", "Heart", "Lungs", "Pancreas", "Intestines", "Tissues"];
+  const organTypes = [
+    "Kidney",
+    "Liver",
+    "Heart",
+    "Lungs",
+    "Pancreas",
+    "Intestines",
+    "Tissues",
+  ];
 
   const onSubmit = async (data: z.infer<typeof donorRegistrationSchema>) => {
     try {
       setIsSubmitting(true);
-      // Here you would typically send the data to your backend
-      console.log({ ...data, email });
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to register.",
+          variant: "destructive",
+        });
+        navigate("/login");
+        return;
+      }
+
+      const response = await fetch("http://localhost:3000/api/donors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || "Failed to register");
+      }
+
       toast({
         title: "Registration Successful",
         description: "Your donor profile has been created successfully!",
       });
-      
-      // Redirect to donor dashboard after successful registration
+
       navigate("/donor/dashboard");
-    } catch (error) {
-      console.error("Registration error:", error);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to register. Please try again.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -108,12 +168,16 @@ const DonorRegistration = () => {
             </CardHeader>
             <CardContent className="p-6">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-6"
+                >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Personal Information */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Personal Information</h3>
-                      
+                      <h3 className="text-lg font-medium">
+                        Personal Information
+                      </h3>
+
                       <FormField
                         control={form.control}
                         name="fullName"
@@ -127,7 +191,7 @@ const DonorRegistration = () => {
                           </FormItem>
                         )}
                       />
-                      
+
                       <FormField
                         control={form.control}
                         name="dateOfBirth"
@@ -141,14 +205,17 @@ const DonorRegistration = () => {
                           </FormItem>
                         )}
                       />
-                      
+
                       <FormField
                         control={form.control}
                         name="bloodGroup"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Blood Group</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select blood group" />
@@ -166,14 +233,17 @@ const DonorRegistration = () => {
                           </FormItem>
                         )}
                       />
-                      
+
                       <FormField
                         control={form.control}
                         name="organType"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Organ Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select organ type" />
@@ -191,7 +261,7 @@ const DonorRegistration = () => {
                           </FormItem>
                         )}
                       />
-                      
+
                       <FormField
                         control={form.control}
                         name="phone"
@@ -199,18 +269,22 @@ const DonorRegistration = () => {
                           <FormItem>
                             <FormLabel>Phone Number</FormLabel>
                             <FormControl>
-                              <Input placeholder="+1 (555) 123-4567" {...field} />
+                              <Input
+                                placeholder="+1 (555) 123-4567"
+                                {...field}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    
-                    {/* Address Information */}
+
                     <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Address Information</h3>
-                      
+                      <h3 className="text-lg font-medium">
+                        Address Information
+                      </h3>
+
                       <FormField
                         control={form.control}
                         name="address"
@@ -224,7 +298,7 @@ const DonorRegistration = () => {
                           </FormItem>
                         )}
                       />
-                      
+
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
@@ -239,7 +313,7 @@ const DonorRegistration = () => {
                             </FormItem>
                           )}
                         />
-                        
+
                         <FormField
                           control={form.control}
                           name="state"
@@ -254,7 +328,7 @@ const DonorRegistration = () => {
                           )}
                         />
                       </div>
-                      
+
                       <FormField
                         control={form.control}
                         name="zipCode"
@@ -268,9 +342,11 @@ const DonorRegistration = () => {
                           </FormItem>
                         )}
                       />
-                      
-                      <h3 className="text-lg font-medium pt-4">Emergency Contact</h3>
-                      
+
+                      <h3 className="text-lg font-medium pt-4">
+                        Emergency Contact
+                      </h3>
+
                       <FormField
                         control={form.control}
                         name="emergencyContactName"
@@ -284,7 +360,7 @@ const DonorRegistration = () => {
                           </FormItem>
                         )}
                       />
-                      
+
                       <FormField
                         control={form.control}
                         name="emergencyContactPhone"
@@ -292,13 +368,16 @@ const DonorRegistration = () => {
                           <FormItem>
                             <FormLabel>Phone Number</FormLabel>
                             <FormControl>
-                              <Input placeholder="+1 (555) 987-6543" {...field} />
+                              <Input
+                                placeholder="+1 (555) 987-6543"
+                                {...field}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      
+
                       <FormField
                         control={form.control}
                         name="medicalHistory"
@@ -318,7 +397,7 @@ const DonorRegistration = () => {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-end space-x-4 pt-4">
                     <Button
                       type="button"
@@ -329,7 +408,9 @@ const DonorRegistration = () => {
                       Back
                     </Button>
                     <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Registering..." : "Complete Registration"}
+                      {isSubmitting
+                        ? "Registering..."
+                        : "Complete Registration"}
                     </Button>
                   </div>
                 </form>

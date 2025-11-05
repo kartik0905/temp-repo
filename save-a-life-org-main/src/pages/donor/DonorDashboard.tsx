@@ -29,10 +29,28 @@ import {
 } from "@/components/ui/select";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Heart, CheckCircle, Clock, Bell, LogOut, Loader2 } from "lucide-react";
+import {
+  Heart,
+  CheckCircle,
+  Clock,
+  Bell,
+  LogOut,
+  Loader2,
+  XCircle, // Import XCircle for rejected status
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
+// 1. ADD TYPE FOR THE DYNAMIC HISTORY DATA
+export interface OrganRequest {
+  _id: string;
+  patientName: string; // This is the patient's name
+  organ: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+// Schema for the profile form
 const profileSchema = z.object({
   fullName: z
     .string()
@@ -69,6 +87,9 @@ const DonorDashboard = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 2. ADD STATE FOR DYNAMIC HISTORY
+  const [history, setHistory] = useState<OrganRequest[]>([]);
+
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -98,43 +119,53 @@ const DonorDashboard = () => {
     "Tissues",
   ];
 
-  const donationHistory = [
-    {
-      id: 1,
-      date: "2024-01-15",
-      status: "approved",
-      organ: "Kidney",
-      patient: "Sarah Johnson",
-    },
-  ];
+  // 3. DELETE THE MOCK donationHistory ARRAY
 
+  // This mock data is fine, as we haven't built a notification backend
   const notifications = [
     {
       id: 1,
-      message: "Your kidney donation request has been approved",
-      time: "2 hours ago",
-      read: false,
+      message: "Profile verification completed successfully",
+      time: "1 day ago",
+      read: true,
     },
   ];
 
+  // Helper function to get token
+  const getAuthToken = () => {
+    return localStorage.getItem("token");
+  };
+
+  // Helper function to format dates
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  // 4. UPDATE USEEFFECT TO FETCH BOTH PROFILE AND HISTORY
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const token = localStorage.getItem("token");
+        const token = getAuthToken();
         if (!token) {
           toast({ title: "Not Authorized", variant: "destructive" });
           navigate("/login?role=donor");
           return;
         }
 
-        const response = await fetch("http://localhost:3000/api/donors/me", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // --- 1. Fetch Profile ---
+        const profileResponse = await fetch(
+          "http://localhost:3000/api/donors/me",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
-        if (response.status === 404) {
+        if (profileResponse.status === 404) {
           toast({
             title: "No Profile Found",
             description: "Please complete your donor registration.",
@@ -142,16 +173,21 @@ const DonorDashboard = () => {
           navigate("/donor/register");
           return;
         }
+        if (!profileResponse.ok) throw new Error("Failed to fetch profile");
+        const profileData = await profileResponse.json();
+        profileData.dateOfBirth = profileData.dateOfBirth.split("T")[0];
+        form.reset(profileData);
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch profile");
-        }
-
-        const data = await response.json();
-
-        data.dateOfBirth = data.dateOfBirth.split("T")[0];
-
-        form.reset(data);
+        // --- 2. Fetch History (NEW) ---
+        const historyResponse = await fetch(
+          "http://localhost:3000/api/donors/me/history",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (!historyResponse.ok) throw new Error("Failed to fetch history");
+        const historyData = await historyResponse.json();
+        setHistory(historyData);
       } catch (error: any) {
         toast({
           title: "Error",
@@ -162,12 +198,13 @@ const DonorDashboard = () => {
         setIsLoading(false);
       }
     };
-    fetchProfile();
+    fetchDashboardData();
   }, [form, navigate, toast]);
 
+  // handleSave (profile update) function is unchanged
   const handleSave = async (values: ProfileFormValues) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getAuthToken();
       const response = await fetch("http://localhost:3000/api/donors/me", {
         method: "PUT",
         headers: {
@@ -196,6 +233,7 @@ const DonorDashboard = () => {
     }
   };
 
+  // handleLogout function is unchanged
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -205,6 +243,15 @@ const DonorDashboard = () => {
     });
     navigate("/login?role=donor");
   };
+
+  // 5. CALCULATE DYNAMIC STATUS
+  const activeAssignments = history.filter(
+    (h) => h.status === "approved"
+  ).length;
+  const livesSaved = history.filter(
+    (h) => h.status === "approved" // You can change this to a "completed" status later
+  ).length;
+  const donationStatus = activeAssignments > 0 ? "In Process" : "Available";
 
   if (isLoading) {
     return (
@@ -240,6 +287,7 @@ const DonorDashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Profile Card (Unchanged) */}
             <Card className="lg:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -260,6 +308,7 @@ const DonorDashboard = () => {
                     onSubmit={form.handleSubmit(handleSave)}
                     className="space-y-4"
                   >
+                    {/* All FormFields are unchanged */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <FormField
                         control={form.control}
@@ -500,7 +549,7 @@ const DonorDashboard = () => {
                           variant="outline"
                           onClick={() => {
                             setIsEditing(false);
-                            form.reset();
+                            form.reset(); // Resets form to last fetched data
                           }}
                         >
                           Cancel
@@ -512,6 +561,7 @@ const DonorDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* 6. STATUS & NOTIFICATIONS COLUMN (NOW DYNAMIC) */}
             <div className="space-y-6">
               <Card className="border-l-4 border-l-secondary">
                 <CardHeader>
@@ -526,7 +576,16 @@ const DonorDashboard = () => {
                       <span className="text-sm text-muted-foreground">
                         Active Status
                       </span>
-                      <Badge variant="secondary">Available</Badge>
+                      {/* DYNAMIC BADGE */}
+                      <Badge
+                        variant={
+                          donationStatus === "Available"
+                            ? "secondary"
+                            : "destructive"
+                        }
+                      >
+                        {donationStatus}
+                      </Badge>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">
@@ -548,14 +607,16 @@ const DonorDashboard = () => {
                       <span className="text-sm text-muted-foreground">
                         Lives Saved
                       </span>
+                      {/* DYNAMIC COUNT */}
                       <span className="font-bold text-2xl text-secondary">
-                        {donationHistory.length}
+                        {livesSaved}
                       </span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Notifications Card (Mock data, unchanged) */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -599,6 +660,7 @@ const DonorDashboard = () => {
             </div>
           </div>
 
+          {/* 7. DONATION HISTORY (NOW DYNAMIC) */}
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>Donation History</CardTitle>
@@ -608,48 +670,67 @@ const DonorDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {donationHistory.map((donation) => (
-                  <div
-                    key={donation.id}
-                    className="flex items-center justify-between p-4 border rounded-lg bg-card hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                          donation.status === "completed"
-                            ? "bg-secondary/20"
-                            : "bg-accent/20"
-                        }`}
-                      >
-                        {donation.status === "completed" ? (
-                          <CheckCircle className="h-6 w-6 text-secondary" />
-                        ) : (
-                          <Clock className="h-6 w-6 text-accent" />
-                        )}
+                {/* Map over 'history' state instead of mock data */}
+                {history.length > 0 ? (
+                  history.map((donation) => (
+                    <div
+                      key={donation._id}
+                      className="flex items-center justify-between p-4 border rounded-lg bg-card hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                            donation.status === "approved"
+                              ? "bg-secondary/20"
+                              : donation.status === "rejected"
+                              ? "bg-destructive/20"
+                              : "bg-accent/20"
+                          }`}
+                        >
+                          {/* Dynamic Icons */}
+                          {donation.status === "approved" && (
+                            <CheckCircle className="h-6 w-6 text-secondary" />
+                          )}
+                          {donation.status === "pending" && (
+                            <Clock className="h-6 w-6 text-accent" />
+                          )}
+                          {donation.status === "rejected" && (
+                            <XCircle className="h-6 w-6 text-destructive" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-semibold">{donation.organ}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Patient: {donation.patientName}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold">{donation.organ}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Patient: {donation.patient}
+                      <div className="text-right">
+                        {/* Dynamic Badge */}
+                        <Badge
+                          variant={
+                            donation.status === "approved"
+                              ? "secondary"
+                              : donation.status === "rejected"
+                              ? "destructive"
+                              : "outline"
+                          }
+                          className="capitalize"
+                        >
+                          {donation.status}
+                        </Badge>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {formatDate(donation.createdAt)}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Badge
-                        variant={
-                          donation.status === "completed"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {donation.status}
-                      </Badge>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {donation.date}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  // Dynamic empty message
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    You have no donation assignments yet.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

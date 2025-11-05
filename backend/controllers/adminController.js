@@ -83,3 +83,34 @@ export const findMatchingDonors = async (req, res, next) => {
     next(e);
   }
 };
+
+export const assignDonorToRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { donorId } = req.body;
+
+    if (!donorId) {
+      return res.status(400).json({ message: "donorId is required" });
+    }
+
+
+    const updatedRequest = await OrganRequest.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          status: "approved", 
+          assignedDonor: donorId, 
+        },
+      },
+      { new: true } 
+    );
+
+    if (!updatedRequest) {
+      return res.status(404).json({ message: "Organ request not found" });
+    }
+
+    res.status(200).json(updatedRequest);
+  } catch (e) {
+    next(e);
+  }
+};

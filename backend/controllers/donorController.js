@@ -1,4 +1,5 @@
 import Donor from "../models/Donor.js";
+import OrganRequest from "../models/OrganRequest.js";
 import { validationResult } from "express-validator";
 
 export const createDonorProfile = async (req, res, next) => {
@@ -65,6 +66,22 @@ export const updateDonorProfile = async (req, res, next) => {
     }
 
     res.status(200).json(donor);
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const getDonorHistory = async (req, res, next) => {
+  try {
+    const donor = await Donor.findOne({ userId: req.user.userId });
+    if (!donor) {
+      return res.status(404).json({ message: "Donor profile not found" });
+    }
+    const history = await OrganRequest.find({ assignedDonor: donor._id }).sort({
+      createdAt: -1,
+    });
+
+    res.status(200).json(history);
   } catch (e) {
     next(e);
   }

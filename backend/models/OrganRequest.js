@@ -19,7 +19,14 @@ const organRequestSchema = new mongoose.Schema(
     urgency: { type: String, enum: ["low", "medium", "high"], default: "high" },
     medicalCondition: { type: String },
     compatibility: { type: String },
-    donor: { type: String },
+
+
+    assignedDonor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Donor",
+      default: null,
+    },
+
     phone: { type: String },
     age: { type: String },
     state: { type: String },

@@ -5,6 +5,7 @@ import {
   createDonorProfile,
   getDonorProfile,
   updateDonorProfile,
+  getDonorHistory,
 } from "../controllers/donorController.js";
 
 const router = Router();
@@ -41,5 +42,7 @@ router.put(
   donorValidationRules,
   updateDonorProfile
 );
+
+router.get("/me/history", requireAuth, requireRole("donor"), getDonorHistory);
 
 export default router;

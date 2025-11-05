@@ -2,6 +2,14 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -20,16 +28,27 @@ import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import {
-  Users,
-  Heart,
-  Hospital,
   Activity,
   CheckCircle,
   XCircle,
   Clock,
   FileText,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+
+interface DonorProfile {
+  _id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  bloodGroup: string;
+  organType: string;
+  city: string;
+  state: string;
+}
+
 
 export interface OrganRequest {
   _id: string;
@@ -46,6 +65,15 @@ const AdminDashboard = () => {
   const { toast } = useToast();
   const [requests, setRequests] = useState<OrganRequest[]>([]);
 
+
+  const [matches, setMatches] = useState<DonorProfile[]>([]);
+  const [isMatchLoading, setIsMatchLoading] = useState(false);
+  const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<OrganRequest | null>(
+    null
+  );
+
+
   useEffect(() => {
     loadRequests();
   }, []);
@@ -53,6 +81,7 @@ const AdminDashboard = () => {
   const getAuthToken = () => {
     return localStorage.getItem("token");
   };
+
 
   const loadRequests = async () => {
     try {
@@ -93,14 +122,7 @@ const AdminDashboard = () => {
   ) => {
     try {
       const token = getAuthToken();
-      if (!token) {
-        toast({
-          title: "Error",
-          description: "Not authorized",
-          variant: "destructive",
-        });
-        return;
-      }
+      if (!token) throw new Error("Not authorized");
 
       const response = await fetch(
         `http://localhost:3000/api/admin/requests/${id}/status`,
@@ -118,7 +140,7 @@ const AdminDashboard = () => {
         throw new Error("Failed to update status");
       }
 
-      loadRequests();
+      loadRequests(); 
       toast({
         title: `Request ${status === "approved" ? "Approved" : "Rejected"}`,
         description: `The donation request has been ${status}.`,
@@ -133,6 +155,84 @@ const AdminDashboard = () => {
     }
   };
 
+
+  const handleFindMatches = async (request: OrganRequest) => {
+    setSelectedRequest(request);
+    setIsMatchLoading(true);
+    setIsMatchDialogOpen(true);
+    setMatches([]); 
+
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error("Not authorized");
+
+      const response = await fetch(
+        `http://localhost:3000/api/admin/requests/${request._id}/find-matches`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to find matches");
+      }
+
+      const data = await response.json();
+      setMatches(data);
+    } catch (error: any) {
+      toast({
+        title: "Error finding matches",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsMatchLoading(false);
+    }
+  };
+
+
+  const handleAssignDonor = async (donorId: string) => {
+    if (!selectedRequest) return;
+
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error("Not authorized");
+
+      const response = await fetch(
+        `http://localhost:3000/api/admin/requests/${selectedRequest._id}/assign`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ donorId: donorId }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to assign donor");
+      }
+
+      toast({
+        title: "Success!",
+        description: `Donor has been assigned and the request is set to 'Approved'.`,
+      });
+
+      setIsMatchDialogOpen(false); 
+      loadRequests(); 
+    } catch (error: any) {
+      toast({
+        title: "Error Assigning Donor",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+
   const handleApprove = (id: string) => {
     handleUpdateStatus(id, "approved");
   };
@@ -140,6 +240,7 @@ const AdminDashboard = () => {
   const handleReject = (id: string) => {
     handleUpdateStatus(id, "rejected");
   };
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -172,6 +273,7 @@ const AdminDashboard = () => {
             </Link>
           </div>
 
+          {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Card className="border-l-4 border-l-primary">
               <CardHeader className="pb-2">
@@ -222,11 +324,12 @@ const AdminDashboard = () => {
             </Card>
           </div>
 
+          {/* All Requests Table */}
           <Card>
             <CardHeader>
               <CardTitle>All Organ Donation Requests</CardTitle>
               <CardDescription>
-                Review and manage all patient requests
+                Review, match, and manage all patient requests
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -302,6 +405,13 @@ const AdminDashboard = () => {
                               >
                                 Reject
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleFindMatches(request)}
+                              >
+                                Find Matches
+                              </Button>
                             </div>
                           )}
                         </TableCell>
@@ -325,6 +435,76 @@ const AdminDashboard = () => {
       </main>
 
       <Footer />
+
+      {/* Find Matches Dialog */}
+      <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              Find Matches for {selectedRequest?.patientName}
+            </DialogTitle>
+            <DialogDescription>
+              Searching for donors matching organ{" "}
+              <strong>{selectedRequest?.organ}</strong> and compatible blood
+              group <strong>{selectedRequest?.bloodGroup}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {isMatchLoading ? (
+              <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-12 w-12 animate-spin" />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Donor Name</TableHead>
+                    <TableHead>Blood Group</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {matches.length > 0 ? (
+                    matches.map((donor) => (
+                      <TableRow key={donor._id}>
+                        <TableCell>{donor.fullName}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{donor.bloodGroup}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {donor.city}, {donor.state}
+                        </TableCell>
+                        <TableCell>{donor.phone}</TableCell>
+                        <TableCell>{donor.email}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            onClick={() => handleAssignDonor(donor._id)}
+                          >
+                            Assign
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        No matching donors found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

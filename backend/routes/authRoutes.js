@@ -4,8 +4,7 @@ import { body } from "express-validator";
 
 const router = Router();
 
-// @route   POST /api/auth/register
-// @desc    Register a new user
+
 router.post(
   "/register",
   [
@@ -23,8 +22,7 @@ router.post(
   registerUser
 );
 
-// @route   POST /api/auth/login
-// @desc    Authenticate user & get token
+
 router.post(
   "/login",
   [

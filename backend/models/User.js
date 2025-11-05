@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
-    passwordHash: { type: String, required: true }, // We store a hash, not the plain password
+    passwordHash: { type: String, required: true }, 
     role: { type: String, enum: ["admin", "donor", "patient"], required: true },
   },
   { timestamps: true }
